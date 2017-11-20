@@ -229,6 +229,10 @@ unquote-splicing quote set!))
 			   		   (args-values (map cadr bindings)))
 	      		(parse `((lambda ,args-names ,(caddr exp) ,@(cdddr exp)) ,@args-values))))
 
+			   ;let-star-without-bindings
+			   ((and (list? exp) (> (length exp) 2) (null? (cadr exp)) (eq? (car exp) 'let*))
+			   	(parse `(let () ,(caddr exp) ,@(cdddr exp))))
+
 
 
 
