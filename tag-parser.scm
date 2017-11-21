@@ -188,9 +188,18 @@ unquote-splicing quote set!))
   (lambda (exp)
   	(and (list? exp) (eq? (car exp) 'if) (= (length exp) 3))))
 
+(define or-without-args?
+  (lambda (exp)
+  	 (and (list? exp) (= (length exp) 1) (eq? (car exp) 'or))))
+
+(define or-with-one-args?
+  (lambda (exp)
+	 (and (list? exp) (= (length exp) 2) (eq? (car exp) 'or))))
+
+
 (define or?
   (lambda (exp)
-  	(and (pair? exp)) (eq? (car exp) 'or)))
+  	(and (list? exp) (> (length exp) 2) (eq? (car exp) 'or))))
 
 (define lambda-simple?
   (lambda (exp)
@@ -282,6 +291,12 @@ unquote-splicing quote set!))
 					  (then (caddr exp)))
 					   `(if3 ,(parse test) ,(parse then) ,(parse (void)))))
 
+
+			  ;or-without-args
+			  ((or-without-args? exp) (parse #f))
+
+			  ;or-with-one-args
+			  ((or-with-one-args? exp) (parse (cadr exp)))
 			  ;or
 			  ((or? exp) `(or ,(map parse (cdr exp))))
 
