@@ -216,48 +216,75 @@ unquote-splicing quote set!))
   (lambda (exp)
 	(and (list? exp) (> (length exp) 2) (var? (cadr exp)) (eq? (car exp) 'set!))))
 
+(define applic?
+  (lambda (exp)
+  	(and (list? exp) (not (member (car exp) *reserved-words*)))))
+
+(define let-without-bindings?
+  (lambda (exp)
+	(and (list? exp) (> (length exp) 2) (null? (cadr exp)) (eq? (car exp) 'let))))
+
+
+(define let-with-bindings?
+  (lambda (exp)
+	(and (list? exp) (> (length exp) 2) (eq? (car exp) 'let))))
+
+(define let-star-without-bindings?
+  (lambda (exp)
+	(and (list? exp) (> (length exp) 2) (null? (cadr exp)) (eq? (car exp) 'let*))))
+
 (define parse
 	(lambda (exp)
 		(cond 
 			;const
 			((constant? exp) `(const ,exp))
+
 			;quote-const
 			((quote-const? exp) `(const ,@(cdr exp)))
+
 			  ;var
 			((var? exp) `(var ,exp))
+
 			  ;if
 			((if? exp)
 				(let ((test (cadr exp))
 					  (then (caddr exp))
 					  (else (cadddr exp)))
 					  `(if3 ,(parse test) ,(parse then) ,(parse else))))
+
 			  ;if without else
 			((if-without-else? exp)
 				(let ((test (cadr exp))
 					  (then (caddr exp)))
 					   `(if3 ,(parse test) ,(parse then) ,(parse (void)))))
+
 			  ;or
 			  ((or? exp) `(or ,(map parse (cdr exp))))
+
 			  ;lambda-simple
 			  ((lambda-simple? exp)
 			  	(let ((args (cadr exp))
                      (body (cddr exp)))
 			   `(lambda-simple ,args ,(handle-seq body))))
+
 			  ;lambda-opt
 			  ((lambda-opt? exp)
 			  	(let* ((args-list (flatten (cadr exp)))
 	      			   (rev-args-list (reverse args-list)))
 				`(lambda-opt ,(reverse (cdr rev-args-list)) ,(car rev-args-list) ,(handle-seq (cddr exp)))))
+
 			  ; lambda-var
 			   ((lambda-var? exp)
 			   	(let ((arg (cadr exp))
 			   		  (body (cddr exp)))
 			   	`(lambda-var () ,arg ,(handle-seq body))))
+
 			  ;regular-define
 			   ((regular-define? exp)
 			   	(let ((var (cadr exp))
 			   		  (val (cddr exp)))
 			   	`(def ,(parse var) ,(handle-seq val))))
+
 			   ;mit-style-define
 			   ((mit-style-define? exp)
 			   	(let* ((var (car (cadr exp)))
@@ -266,29 +293,35 @@ unquote-splicing quote set!))
 			   	(parse `(define ,var ,`(lambda ,args ,@body)))))
 
 			   ;set!
-
 			   ((set? exp)
 			   	(let ((var (cadr exp))
 			   		  (val (cddr exp)))
 			   	 `(set ,(parse var) ,(handle-seq val))))
 
 			   ;applic
-			   ((and (list? exp) (not (member (car exp) *reserved-words*)))
-			   	`(applic ,(parse (car exp)) ,(map parse (cdr exp))))
+			   ((applic? exp)
+			   	(let ((first-body (car exp))
+			   		  (rest-bodies (cdr exp)))
+			   	`(applic ,(parse first-body) ,(map parse rest-bodies))))
 
 			   ;let-without-bindings
-			   ((and (list? exp) (> (length exp) 2) (null? (cadr exp)) (eq? (car exp) 'let))
-			   	(parse `((lambda () ,(caddr exp) ,@(cdddr exp)))))
+			   ((let-without-bindings? exp)
+			   	(let ((first-body (caddr exp))
+			   		  (rest-bodies (cdddr exp)))
+			   	(parse `((lambda () ,first-body ,@rest-bodies)))))
+
 			   ;let-with-bindings
-			   ((and (list? exp) (> (length exp) 2) (eq? (car exp) 'let))
+			   ((let-with-bindings? exp)
 			   	(let* ((bindings (cadr exp))
 			   		   (args-names (map car bindings))
 			   		   (args-values (map cadr bindings)))
 	      		(parse `((lambda ,args-names ,(caddr exp) ,@(cdddr exp)) ,@args-values))))
 
 			   ;let-star-without-bindings
-			   ((and (list? exp) (> (length exp) 2) (null? (cadr exp)) (eq? (car exp) 'let*))
-			   	(parse `(let () ,(caddr exp) ,@(cdddr exp))))
+			   ((let-star-without-bindings? exp)
+			   	(let ((first-body (caddr exp))
+			   		  (rest-bodies (cdddr exp)))
+			   	(parse `(let () ,first-body ,@rest-bodies))))
 
 			   ;let-star-with-bindings
 			   ;((and (list? exp) (> (length exp) 2) (eq? (car exp) 'let*)))
