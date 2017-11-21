@@ -176,44 +176,101 @@ unquote-splicing quote set!))
     )
 ))
 
+(define quote-const?
+  (lambda (exp)
+  	(and (pair? exp) (eq? (car exp) 'quote))))
+
+(define if?
+  (lambda (exp)
+  	(and (list? exp) (= (length exp) 4) (eq? (car exp) 'if))))
+
+(define if-without-else?
+  (lambda (exp)
+  	(and (list? exp) (= (length exp) 3) (eq? (car exp) 'if))))
+
+(define or?
+  (lambda (exp)
+  	(and (pair? exp) (eq? (car exp) 'or))))
+
+(define lambda-simple?
+  (lambda (exp)
+  	(and (list? exp) (> (length exp) 2) (check-simple-params? (cadr exp)) (eq? (car exp) 'lambda))))
+
+(define lambda-opt?
+  (lambda (exp)
+	(and (list? exp) (> (length exp) 2) (improper-list? (cadr exp)) (eq? (car exp) 'lambda))))
+
+(define lambda-var?
+  (lambda (exp)
+	(and (list? exp) (> (length exp) 2) (var? (cadr exp)) (eq? (car exp) 'lambda))))
+
+(define regular-define?
+  (lambda (exp)
+  	(and (list? exp) (> (length exp) 2) (var? (cadr exp)) (eq? (car exp) 'define))))
+
+(define mit-style-define?
+  (lambda (exp)
+	(and (list? exp) (> (length exp) 2) (list? (cadr exp)) (eq? (car exp) 'define))))
+
+(define set?
+  (lambda (exp)
+	(and (list? exp) (> (length exp) 2) (var? (cadr exp)) (eq? (car exp) 'set!))))
+
 (define parse
 	(lambda (exp)
 		(cond 
 			;const
 			((constant? exp) `(const ,exp))
 			;quote-const
-			  ((and (pair? exp) (eq? (car exp) 'quote)) `(const ,@(cdr exp)))
+			((quote-const? exp) `(const ,@(cdr exp)))
 			  ;var
-			  ((var? exp) `(var ,exp))
+			((var? exp) `(var ,exp))
 			  ;if
-			  ((and (list? exp) (= (length exp) 4)
-			  	(eq? (car exp) 'if)) `(if3 ,(parse (cadr exp)) ,(parse (caddr exp)) ,(parse (cadddr exp))))
+			((if? exp)
+				(let ((test (cadr exp))
+					  (then (caddr exp))
+					  (else (cadddr exp)))
+					  `(if3 ,(parse test) ,(parse then) ,(parse else))))
 			  ;if without else
-			  ((and (list? exp) (= (length exp) 3)
-			  	(eq? (car exp) 'if)) `(if3 ,(parse (cadr exp)) ,(parse (caddr exp)) ,(parse (void))))
+			((if-without-else? exp)
+				(let ((test (cadr exp))
+					  (then (caddr exp)))
+					   `(if3 ,(parse test) ,(parse then) ,(parse (void)))))
 			  ;or
-			  ((and (pair? exp) (eq? (car exp) 'or)) `(or ,(handle-seq (cdr exp))))
+			  ((or? exp) `(or ,(map parse (cdr exp))))
 			  ;lambda-simple
-			  ((and (list? exp) (> (length exp) 2) (check-simple-params? (cadr exp)) (eq? (car exp) 'lambda))
-			   `(lambda-simple ,(cadr exp) ,(handle-seq (cddr exp))))
+			  ((lambda-simple? exp)
+			  	(let ((args (cadr exp))
+                     (body (cddr exp)))
+			   `(lambda-simple ,args ,(handle-seq body))))
 			  ;lambda-opt
-			  ((and (list? exp) (> (length exp) 2) (improper-list? (cadr exp)) (eq? (car exp) 'lambda))
+			  ((lambda-opt? exp)
 			  	(let* ((args-list (flatten (cadr exp)))
 	      			   (rev-args-list (reverse args-list)))
 				`(lambda-opt ,(reverse (cdr rev-args-list)) ,(car rev-args-list) ,(handle-seq (cddr exp)))))
 			  ; lambda-var
-			   ((and (list? exp) (> (length exp) 2) (var? (cadr exp)) (eq? (car exp) 'lambda))
-			   	`(lambda-var () ,(cadr exp) ,(handle-seq (cddr exp))))
+			   ((lambda-var? exp)
+			   	(let ((arg (cadr exp))
+			   		  (body (cddr exp)))
+			   	`(lambda-var () ,arg ,(handle-seq body))))
 			  ;regular-define
-			   ((and (list? exp) (> (length exp) 2) (var? (cadr exp)) (eq? (car exp) 'define))
-			   	`(def ,(parse (cadr exp)) ,(handle-seq (cddr exp))))
+			   ((regular-define? exp)
+			   	(let ((var (cadr exp))
+			   		  (val (cddr exp)))
+			   	`(def ,(parse var) ,(handle-seq val))))
 			   ;mit-style-define
-			   ((and (list? exp) (> (length exp) 2) (list? (cadr exp)) (eq? (car exp) 'define))
-			   	(parse `(define ,(car (cadr exp)) ,`(lambda ,(cdr (cadr exp)) ,@(cddr exp)))))
+			   ((mit-style-define? exp)
+			   	(let* ((var (car (cadr exp)))
+			   		   (args (cdr (cadr exp)))
+			   		   (body (cddr exp)))
+			   	(parse `(define ,var ,`(lambda ,args ,@body)))))
 
 			   ;set!
-			   ((and (list? exp) (> (length exp) 2) (var? (cadr exp)) (eq? (car exp) 'set!))
-			   	 `(set ,(parse (cadr exp)) ,(handle-seq (cddr exp))))
+
+			   ((set? exp)
+			   	(let ((var (cadr exp))
+			   		  (val (cddr exp)))
+			   	 `(set ,(parse var) ,(handle-seq val))))
 
 			   ;applic
 			   ((and (list? exp) (not (member (car exp) *reserved-words*)))
@@ -232,6 +289,11 @@ unquote-splicing quote set!))
 			   ;let-star-without-bindings
 			   ((and (list? exp) (> (length exp) 2) (null? (cadr exp)) (eq? (car exp) 'let*))
 			   	(parse `(let () ,(caddr exp) ,@(cdddr exp))))
+
+			   ;let-star-with-bindings
+			   ;((and (list? exp) (> (length exp) 2) (eq? (car exp) 'let*)))
+			   	
+
 
 
 
