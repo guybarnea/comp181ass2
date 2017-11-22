@@ -276,6 +276,10 @@ unquote-splicing quote set!))
   (lambda (exp)
   	(and (list? exp) (eq? (car exp) 'cond) (> (length exp) 2))))
 
+(define quasiquote?
+  (lambda (exp)
+  	(and (list? exp) (eq? (car exp) 'quasiquote) (= (length exp) 2))))
+
 (define parse
 	(lambda (exp)
 		(cond 
@@ -431,7 +435,9 @@ unquote-splicing quote set!))
 			   	`(if3 ,(parse first-cond) ,(handle-seq first-body) ,(parse `(cond ,rest-conds)))))
 
 
-
+			   	;quasi-quote
+			   	((quasiquote? exp)
+			   	  (parse (expand-qq (cadr exp))))
 
 
 
