@@ -3,10 +3,7 @@
 ;;;;;;;;;;;;;;;;;;;;;; helper functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(define *reserved-words*
-'(and begin cond define do else if lambda
-let let* letrec or quasiquote unquote
-unquote-splicing quote set!))
+
 
 
 
@@ -116,6 +113,11 @@ unquote-splicing quote set!))
 ; 	`(lambda-simple ,args ,(parse `(begin ,body ,@other-bodies))))
 ; ))
 ; ;;;;;;;;;;;;;;;;;;;;;; parse function ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define *reserved-words*
+'(and begin cond define do else if lambda
+let let* letrec or quasiquote unquote
+unquote-splicing quote set!))
 
 (define handle-multi-begin
   (lambda (x)
@@ -266,6 +268,14 @@ unquote-splicing quote set!))
   (lambda (exp)
   	(and (list? exp) (eq? (car exp) 'and) (> (length exp) 2))))
 
+(define cond-with-one-exp?
+  (lambda (exp)
+  	(and (list? exp) (eq? (car exp) 'cond) (= (length exp) 2))))
+
+(define cond?
+  (lambda (exp)
+  	(and (list? exp) (eq? (car exp) 'cond) (> (length exp) 2))))
+
 (define parse
 	(lambda (exp)
 		(cond 
@@ -404,6 +414,22 @@ unquote-splicing quote set!))
 			   (let ((first (cadr exp))
 			   		(rest (cddr exp)))
 			   `(if3 ,(parse first) ,(parse `(and ,@rest)) ,(parse #f))))
+
+			   ;cond-with-one-exp
+			   ((cond-with-one-exp? exp)
+			   	  (let ((cond (caadr exp))
+			   	  		(body (cdadr exp)))
+			   		(if (equal? (caadr exp) 'else)
+		      		(handle-seq (cdadr exp))
+		      `(if3 ,(parse cond) ,(handle-seq body) ,(parse (void))))))
+
+			   ;cond
+			   ((cond? exp)
+			   	(let ((first-cond (caadr exp))
+			   		  (first-body (cdadr exp))
+			   		  (rest-conds (caddr exp)))
+			   	`(if3 ,(parse first-cond) ,(handle-seq first-body) ,(parse `(cond ,rest-conds)))))
+
 
 
 
