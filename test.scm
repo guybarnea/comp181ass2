@@ -8,7 +8,8 @@
 (load "tag-parser.scm")
 (load "tagparser.so")
 
-(define my-parse-func parse)
+
+(define my-parse-func parse2)
 (define staff-parse-func parse)
 
 (define try-catch
