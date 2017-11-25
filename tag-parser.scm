@@ -229,8 +229,7 @@ unquote-splicing quote set!))
 
 (define mit-style-improper-define-one-arg?
 	(lambda(exp)
-		(let ((lst (cadr exp)))
-			(and (list? exp) (eq? (car exp) 'define) (> (length exp) 2) (improper-list? lst) (= (length-improper-left lst) 1)))))
+			(and (list? exp) (eq? (car exp) 'define) (> (length exp) 2) (improper-list? (cadr exp)) (= (length-improper-left (cadr exp)) 1))))
 
 ;same as before for now...
 (define mit-style-improper-define-more-than-one-arg?
@@ -279,7 +278,7 @@ unquote-splicing quote set!))
 
 (define and-without-args?
   (lambda (exp)
-  	(eq? exp (and))))
+  	(and (list? exp) (eq? (car exp) 'and) (= (length exp) 1))))
 
 (define and-with-one-arg?
   (lambda (exp)
@@ -516,6 +515,11 @@ unquote-splicing quote set!))
 			   (let ((first (cadr exp))
 			   		(rest (cddr exp)))
 			   `(if3 ,(parse2 first) ,(parse2 `(and ,@rest)) ,(parse2 #f))))
+
+			   ((and? exp)
+			   (let ((first (cadr exp))
+			   		(rest (cddr exp)))
+			   `(if3 ,(parse first) ,(parse `(and ,@rest)) ,(parse #f))))
 
 			   ;cond-with-one-exp
 			   ((cond-with-one-exp? exp)
