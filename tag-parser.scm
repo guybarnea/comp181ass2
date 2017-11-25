@@ -207,11 +207,11 @@ unquote-splicing quote set!))
   (lambda (exp)
   	(and (list? exp) (eq? (car exp) 'lambda) (> (length exp) 2) (check-simple-params? (cadr exp)))))
 
-(define lambda-opt?
+(define lambda-opt-im?
   (lambda (exp)
-	(and (list? exp) (eq? (car exp) 'lambda) (> (length exp) 2) (improper-list? (cadr exp)))))
+	(and (list? exp) (eq? (car exp) 'lambda) (> (length exp) 2) (or (improper-list? (cadr exp))))))
 
-(define lambda-var?
+(define lambda-opt-var?
   (lambda (exp)
 	(and (list? exp) (eq? (car exp) 'lambda) (> (length exp) 2) (var? (cadr exp)))))
 
@@ -279,7 +279,7 @@ unquote-splicing quote set!))
 
 (define and-without-args?
   (lambda (exp)
-  	(and (list? exp) (eq? (car exp) 'and) (= (length exp) 1))))
+  	(eq? exp (and))))
 
 (define and-with-one-arg?
   (lambda (exp)
@@ -399,23 +399,22 @@ unquote-splicing quote set!))
 			   `(lambda-simple ,args ,(handle-seq body))))
 
 			  ;lambda-opt
-			  ((lambda-opt? exp)
+			  ((lambda-opt-im? exp)
 			  	(let* ((args-list (flatten (cadr exp)))
 	      			   (rev-args-list (reverse args-list)))
 				`(lambda-opt ,(reverse (cdr rev-args-list)) ,(car rev-args-list) ,(handle-seq (cddr exp)))))
 
 			  ; lambda-var
-			   ((lambda-var? exp)
+			   ((lambda-opt-var? exp)
 			   	(let ((arg (cadr exp))
 			   		  (body (cddr exp)))
-			   	 
-			   	`(lambda-var () ,arg ,(handle-seq body))))
+			   	`(lambda-opt () ,arg ,(handle-seq body))))
 
 			   ; lambda-var-improper-more-than-one-arg
 			   ((lambda-var-improper? exp)
 			   	(let ((arg (cadr exp))
 			   		  (body (cddr exp)))
-			   	`(lambda-var ,arg  ,(handle-seq body))))
+			   	`(lambda-opt ,arg  ,(handle-seq body))))
 
 			  ;regular-define
 			   ((regular-define? exp)
@@ -435,7 +434,6 @@ unquote-splicing quote set!))
 			    (let* ((var (car (cadr exp)))
 			   		   (args (cdr (cadr exp)))
 			   		   (body (cddr exp)))
-			     (display "exp1 = ") (display exp) (display "\n")
 			   	(parse2 `(define ,var ,`(lambda-im ,args ,@body)))))
 
 			   ;mit-style-improper-define-more-than-one-arg?
@@ -443,15 +441,7 @@ unquote-splicing quote set!))
 			    (let* ((var (car (cadr exp)))
 			   		   (args (cdr (cadr exp)))
 			   		   (body (cddr exp)))
-			    (display "exp2 = ") (display exp) (display "\n")
 			   	(parse2 `(define ,var ,`(lambda ,args ,@body)))))
-
-
-;(define (foo x y . z) (if x y z) #t): Failed! ☹ , 
-;Expected: (def (var foo) (lambda-opt (x y) z (seq ((if3 (var x) (var y) (var z)) (const #t))))), 
-;Actual:   (def (var foo) (applic (var lambda-im) ("what are you doing here\n" (if3 (var x) (var y) (var z)) (const #t))))
-
-
 
 			   ;set!
 			   ((set? exp)
@@ -535,7 +525,7 @@ unquote-splicing quote set!))
 		      		(handle-seq (cdadr exp))
 		      `(if3 ,(parse2 cond) ,(handle-seq body) ,(parse2 (void))))))
 
-			   ;cond-without-else
+#| 			   ;cond-without-else
 			   ((cond-without-else? exp)
 			   	(let ((first-cond (caadr exp))
 			   		  (first-body (cdadr exp))
@@ -549,19 +539,15 @@ unquote-splicing quote set!))
 			   		  (lst-two-last (get-two-last exp)))
 			   	;need to sequence those two actions
 			   		(map (lambda(cond-clause) `(if3 ,(parse2 (car cond-clause)) ,(handle-seq (cdr cond-clause)))) lst-except-two)
-			   		`(if3 ,(parse2 (caar lst-two-last)) ,(handle-seq (cdar lst-two-last)) ,(handle-seq (cdadr lst-two-last))))) 
+			   		`(if3 ,(parse2 (caar lst-two-last)) ,(handle-seq (cdar lst-two-last)) ,(handle-seq (cdadr lst-two-last)))))  |#
 
 
- ;cond
-#| 			   ((cond? exp)
+ 				;cond
+			   ((cond? exp)
 			   	(let ((first-cond (caadr exp))
 			   		  (first-body (cdadr exp))
 			   		  (rest-conds (caddr exp)))
-			   	`(if3 ,(parse first-cond) ,(handle-seq first-body) ,(parse `(cond ,rest-conds))))) |#
-;(cond ((zero? n) 1) ((positive? n) 2) (else 5)): Failed! ☹ , 
-;Expected: (if3 (applic (var zero?) ((var n))) (const 1) (if3 (applic (var positive?) ((var n))) (const 2) (const 5)))
-;Actual:   (if3 (applic (var zero?) ((var n))) (const 1) (if3 (applic (var positive?) ((var n))) (const 2)) (const 5))  
-
+			   	`(if3 ,(parse first-cond) ,(handle-seq first-body) ,(parse `(cond ,rest-conds)))))
 			   	;quasi-quote
 			   	((quasiquote? exp)
 			   	  (parse2 (expand-qq (cadr exp))))
