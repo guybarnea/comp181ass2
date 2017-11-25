@@ -215,6 +215,10 @@ unquote-splicing quote set!))
   (lambda (exp)
 	(and (list? exp) (eq? (car exp) 'lambda) (> (length exp) 2) (var? (cadr exp)))))
 
+(define lambda-var-improper?
+  (lambda (exp)
+	(and (list? exp) (eq? (car exp) 'lambda-im) (> (length exp) 2) (var? (cadr exp)))))
+
 (define regular-define?
   (lambda (exp)
   	(and (list? exp) (eq? (car exp) 'define) (> (length exp) 2) (var? (cadr exp)))))
@@ -222,6 +226,23 @@ unquote-splicing quote set!))
 (define mit-style-define?
   (lambda (exp)
 	(and (list? exp) (eq? (car exp) 'define) (> (length exp) 2) (list? (cadr exp)))))
+
+(define mit-style-improper-define-one-arg?
+	(lambda(exp)
+		(let ((lst (cadr exp)))
+			(and (list? exp) (eq? (car exp) 'define) (> (length exp) 2) (improper-list? lst) (= (length-improper-left lst) 1)))))
+
+;same as before for now...
+(define mit-style-improper-define-more-than-one-arg?
+	(lambda(exp)
+		(and (list? exp) (eq? (car exp) 'define) (> (length exp) 2) (improper-list? (cadr exp)))))
+
+(define length-improper-left
+	(lambda(im-lst)
+		(if (pair? im-lst)
+			(+ 1 (length-improper-left (cdr im-lst)))
+			0 )))
+			
 
 (define set?
   (lambda (exp)
@@ -387,7 +408,14 @@ unquote-splicing quote set!))
 			   ((lambda-var? exp)
 			   	(let ((arg (cadr exp))
 			   		  (body (cddr exp)))
+			   	 
 			   	`(lambda-var () ,arg ,(handle-seq body))))
+
+			   ; lambda-var-improper-more-than-one-arg
+			   ((lambda-var-improper? exp)
+			   	(let ((arg (cadr exp))
+			   		  (body (cddr exp)))
+			   	`(lambda-var ,arg  ,(handle-seq body))))
 
 			  ;regular-define
 			   ((regular-define? exp)
@@ -401,6 +429,29 @@ unquote-splicing quote set!))
 			   		   (args (cdr (cadr exp)))
 			   		   (body (cddr exp)))
 			   	(parse2 `(define ,var ,`(lambda ,args ,@body)))))
+
+			   ;mit-style-improper-define
+			   ((mit-style-improper-define-one-arg? exp)
+			    (let* ((var (car (cadr exp)))
+			   		   (args (cdr (cadr exp)))
+			   		   (body (cddr exp)))
+			     (display "exp1 = ") (display exp) (display "\n")
+			   	(parse2 `(define ,var ,`(lambda-im ,args ,@body)))))
+
+			   ;mit-style-improper-define-more-than-one-arg?
+			   ((mit-style-improper-define-more-than-one-arg? exp)
+			    (let* ((var (car (cadr exp)))
+			   		   (args (cdr (cadr exp)))
+			   		   (body (cddr exp)))
+			    (display "exp2 = ") (display exp) (display "\n")
+			   	(parse2 `(define ,var ,`(lambda ,args ,@body)))))
+
+
+;(define (foo x y . z) (if x y z) #t): Failed! ☹ , 
+;Expected: (def (var foo) (lambda-opt (x y) z (seq ((if3 (var x) (var y) (var z)) (const #t))))), 
+;Actual:   (def (var foo) (applic (var lambda-im) ("what are you doing here\n" (if3 (var x) (var y) (var z)) (const #t))))
+
+
 
 			   ;set!
 			   ((set? exp)
