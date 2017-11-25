@@ -292,29 +292,17 @@ unquote-splicing quote set!))
   (lambda (exp)
   	(and (list? exp) (eq? (car exp) 'cond) (= (length exp) 2))))
 
-(define cond-with-else?
-	(lambda(exp)
-	(and (list? exp) (eq? (car exp) 'cond) (else-in-the-end? (cdr exp)))))
-
-(define cond-without-else?
-	(lambda(exp)
-	(and (list? exp) (eq? (car exp) 'cond) (not(else-in-the-end? (cdr exp))))))
-
-;return true if the last expression is else
-(define else-in-the-end?
-	(lambda(lst)
-		(equal? (car(get-last-exp lst))  'else)))
-
-;get a list of expressions and return the last expression
-(define get-last-exp
-		(lambda(lst)
-			(if (= (length lst) 1)
-				(car lst)
-				(get-last-exp (cdr lst)))))
-
-#| (define cond?
+(define cond?
   (lambda (exp)
-  	(and (list? exp) (eq? (car exp) 'cond) (> (length exp) 2)))) |#
+  	(and (list? exp) (eq? (car exp) 'cond) (> (length exp) 2))))
+
+(define cond-rec
+	(lambda(lst-of-conds)
+		(if (= (length lst-of-conds) 1)
+			(if (eq? (caar lst-of-conds) 'else)
+				`(begin ,@(cdar lst-of-conds))
+				`(if ,(caar lst-of-conds) (begin ,@(cdar lst-of-conds))))
+			`(if ,(caar lst-of-conds) (begin ,@(cdar lst-of-conds)) ,(cond-rec (cdr lst-of-conds))))))
 
 (define else?
 	(lambda(exp)
@@ -327,29 +315,13 @@ unquote-splicing quote set!))
 			(cons (car lst) (get-all-but-last (cdr lst)))
 			(cons (car lst) '()))))
 
-;get all elements except first element
-(define get-all-but-first
-	(lambda(lst) (cdr lst)))
+(define begin-with-args?
+	(lambda(exp)
+		(and (list? exp) (eq? (car exp) 'begin) (> (length exp) 1))))
 
-;get a list and return the same list without the  two last element
-(define get-all-but-last-two
-	(lambda(lst)
-		(if (> (length lst) 3)
-			(cons (car lst) (get-all-but-last-two (cdr lst)))
-			(cons (car lst) '()))))
-
-;get a list and return all of the list except first and two last elements
-(define get-all-but-first-and-last-two
-	(lambda(lst)
-		(let ((without-first (get-all-but-first lst)))
-			(get-all-but-last-two without-first))))
-
-;input: list. return: two last elements
-(define get-two-last
-	(lambda(lst)
-		(if(> (length lst) 2)
-			 (get-two-last (cdr lst))
-			 lst)))
+(define begin-without-args?
+	(lambda(exp)
+		(and (list? exp) (eq? (car exp) 'begin) (= (length exp) 1))))
 
 
 ; ################################################################
@@ -359,6 +331,9 @@ unquote-splicing quote set!))
 
 (define parse2
 	(lambda (exp)
+		#| (display "exp = ")
+		(display exp)
+		(display "\n") |#
 		(cond 
 			;const
 			((constant? exp) `(const ,exp))
@@ -478,7 +453,7 @@ unquote-splicing quote set!))
 			   	(let ((handle-bindings (lambda (bindings body other-bodies)
 				  (if (null? bindings)
 				    `(,body ,@other-bodies)
-				    `((let* ,bindaings ,body ,@other-bodies)))))
+				    `((let* ,bindings ,body ,@other-bodies)))))
 			   		  (key (caaadr exp))
 			   		  (val (cdaadr exp))
 			   		  (other-bindings (cdadr exp))
@@ -529,45 +504,21 @@ unquote-splicing quote set!))
 		      		(handle-seq (cdadr exp))
 		      `(if3 ,(parse2 cond) ,(handle-seq body) ,(parse2 (void))))))
 
-#| 			   ;cond-without-else
-			   ((cond-without-else? exp)
-			   	(let ((first-cond (caadr exp))
-			   		  (first-body (cdadr exp))
-			   		  (rest-conds (cddr exp)))
-			   	`(if3 ,(parse2 first-cond) ,(handle-seq first-body) ,(map (lambda(cond-clause)
-			   		`(if3 ,(parse2 (car cond-clause)) ,(handle-seq (cdr cond-clause)))) rest-conds))))
+			   	  ((begin-with-args? exp)
+			   	  	(handle-seq (cdr exp)))
 
-   			   ;cond-with-else
-			   ((cond-with-else? exp)
-			   	(let ((lst-except-two (get-all-but-first-and-last-two exp))
-			   		  (lst-two-last (get-two-last exp)))
-			   	;need to sequence those two actions
-			   		(map (lambda(cond-clause) `(if3 ,(parse2 (car cond-clause)) ,(handle-seq (cdr cond-clause)))) lst-except-two)
-			   		`(if3 ,(parse2 (caar lst-two-last)) ,(handle-seq (cdar lst-two-last)) ,(handle-seq (cdadr lst-two-last)))))  |#
+			   	  ((begin-without-args? exp)
+			   	  	(parse2 (void)))
 
+			   	  ((cond? exp) 
+			   	  	(parse2 (cond-rec (cdr exp))))
 
- 				;cond
-			   ((cond? exp)
-			   	(let ((first-cond (caadr exp))
-			   		  (first-body (cdadr exp))
-			   		  (rest-conds (caddr exp)))
-			   	`(if3 ,(parse first-cond) ,(handle-seq first-body) ,(parse `(cond ,rest-conds)))))
 			   	;quasi-quote
 			   	((quasiquote? exp)
 			   	  (parse2 (expand-qq (cadr exp))))
-			(else "what are you doing here\n")))
-; (let ((run (compose-patterns 
-; 	or?
-; 	void?
-; 	quoted-constant?
-;     constant? 
-;     variable? 
-;     if-without-else-condition?
-;     if-condition? 
-;     lambda-simple?
-;     begin?
-;     )))
-; 	(lambda (sexpr)
-;                 (run sexpr (lambda () (error 'parse2 (format "ERROR in ~s" sexpr))))))
+
+			(else "ERROR: no such expression\n")))
 )
+
+
   
